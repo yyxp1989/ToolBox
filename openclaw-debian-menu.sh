@@ -9,7 +9,7 @@ set -u
 # 4) 安装 OpenClaw CLI
 # 5) OpenClaw 菜单化运维（网关/doctor/配对等）
 
-VERSION="2.4.5"
+VERSION="2.4.6"
 LOG_FILE="/tmp/openclaw-menu.log"
 
 RED='\033[31m'
@@ -634,6 +634,7 @@ openclaw_gateway_menu() {
     echo "3) 启动网关 (openclaw gateway start)"
     echo "4) 停止网关 (openclaw gateway stop)"
     echo "5) 查看网关日志 (openclaw logs)"
+    echo "6) 重新安装/配置系统服务 (onboard --install-daemon)"
     echo "0) 返回上一级"
     read -rp "请选择: " n
 
@@ -643,6 +644,7 @@ openclaw_gateway_menu() {
       3) ensure_openclaw_installed && openclaw gateway start; pause ;;
       4) ensure_openclaw_installed && openclaw gateway stop; pause ;;
       5) ensure_openclaw_installed && openclaw logs; pause ;;
+      6) onboard_openclaw; pause ;;
       0) return ;;
       *) warn "无效输入"; pause ;;
     esac
