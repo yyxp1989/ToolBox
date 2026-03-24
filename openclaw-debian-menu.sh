@@ -9,7 +9,7 @@ set -u
 # 4) 安装 OpenClaw CLI
 # 5) OpenClaw 菜单化运维（网关/doctor/配对等）
 
-VERSION="2.4.4"
+VERSION="2.4.5"
 LOG_FILE="/tmp/openclaw-menu.log"
 
 RED='\033[31m'
@@ -957,7 +957,16 @@ configure_vnc_password() {
   mkdir -p "$vnc_dir"
   
   # 使用 vncpasswd 设置密码
-  vncpasswd 2>/dev/null && ok "VNC 密码配置成功"
+  if vncpasswd 2>/dev/null; then
+    ok "VNC 密码配置成功"
+    # 连动触发
+    read -rp "是否立即重启 VNC 服务以应用新密码？[y/N]: " cfm_restart
+    if [[ "$cfm_restart" =~ ^[Yy]$ ]]; then
+      restart_vnc
+    fi
+  else
+    err "VNC 密码配置失败"
+  fi
 }
 
 start_vnc() {
@@ -1259,6 +1268,11 @@ configure_smb_user() {
   # 添加 Samba 用户
   if as_root smbpasswd -a "$TARGET_USER"; then
     ok "Samba 用户 ${TARGET_USER} 配置成功"
+    # 连动触发
+    read -rp "是否立即重启 Samba 服务以应用新用户配置？[y/N]: " cfm_restart
+    if [[ "$cfm_restart" =~ ^[Yy]$ ]]; then
+      restart_smb
+    fi
   else
     err "Samba 用户配置失败"
     return 1
