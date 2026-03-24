@@ -9,7 +9,7 @@ set -u
 # 4) 安装 OpenClaw CLI
 # 5) OpenClaw 菜单化运维（网关/doctor/配对等）
 
-VERSION="2.4.6"
+VERSION="2.4.7"
 LOG_FILE="/tmp/openclaw-menu.log"
 
 RED='\033[31m'
@@ -1528,6 +1528,35 @@ show_fileshare_status() {
   echo -e "${BLUE}════════════════════════════════════════${NC}"
 }
 
+# ==================== 快捷启动配置 ====================
+
+setup_shortcut() {
+  local script_dest="/home/${TARGET_USER}/openclaw-menu.sh"
+  local bashrc="/home/${TARGET_USER}/.bashrc"
+  
+  step "配置快捷启动别名 (alias y)..."
+  
+  # 1. 保存当前脚本到家目录
+  if [ "$(realpath "$0")" != "$(realpath "$script_dest")" ]; then
+    cp "$0" "$script_dest"
+    chmod +x "$script_dest"
+    ok "脚本已保存至: $script_dest"
+  fi
+
+  # 2. 注入别名到 .bashrc
+  if grep -q "alias y=" "$bashrc"; then
+    # 如果已存在，则更新
+    sed -i "s|alias y=.*|alias y='$script_dest'|" "$bashrc"
+    ok "快捷别名 'y' 已更新"
+  else
+    echo "alias y='$script_dest'" >> "$bashrc"
+    ok "快捷别名 'y' 已添加"
+  fi
+
+  info "配置已完成。请手动执行 'source ~/.bashrc' 或重新登录使别名生效。"
+  warn "生效后，你只需在终端输入 'y' 即可启动本菜单。"
+}
+
 # ==================== 一键初始化 ====================
 
 full_init() {
@@ -1538,11 +1567,12 @@ full_init() {
   echo
   warn "此操作将依次执行："
   echo "  1. 配置 sudo 免密"
-  echo "  2. 安装 Node.js (v22.22+)"
-  echo "  3. 安装 pnpm 包管理器"
-  echo "  4. 安装 Docker"
-  echo "  5. 用户加入 docker 组"
-  echo "  6. 安装 OpenClaw CLI"
+  echo "  2. 配置快捷启动别名 (alias y)"
+  echo "  3. 安装 Node.js (v22.22+)"
+  echo "  4. 安装 pnpm 包管理器"
+  echo "  5. 安装 Docker"
+  echo "  6. 用户加入 docker 组"
+  echo "  7. 安装 OpenClaw CLI"
   echo
   read -rp "确认执行一键初始化？[y/N]: " cfm
   if [[ ! "$cfm" =~ ^[Yy]$ ]]; then
@@ -1552,22 +1582,25 @@ full_init() {
 
   local failed=0
 
-  step "[1/6] 配置 sudo 免密..."
+  step "[1/7] 配置 sudo 免密..."
   configure_nopasswd || { warn "sudo 免密配置失败，继续..."; failed=$((failed+1)); }
 
-  step "[2/6] 安装 Node.js..."
+  step "[2/7] 配置快捷启动别名..."
+  setup_shortcut || { warn "别名配置失败，继续..."; failed=$((failed+1)); }
+
+  step "[3/7] 安装 Node.js..."
   install_nodejs || { warn "Node.js 安装失败，继续..."; failed=$((failed+1)); }
 
-  step "[3/6] 安装 pnpm..."
+  step "[4/7] 安装 pnpm..."
   install_pnpm || { warn "pnpm 安装失败，继续..."; failed=$((failed+1)); }
 
-  step "[4/6] 安装 Docker..."
+  step "[5/7] 安装 Docker..."
   install_docker || { warn "Docker 安装失败，继续..."; failed=$((failed+1)); }
 
-  step "[5/6] 用户加入 docker 组..."
+  step "[6/7] 用户加入 docker 组..."
   add_user_to_docker_group || { warn "添加用户到 docker 组失败，继续..."; failed=$((failed+1)); }
 
-  step "[6/6] 安装 OpenClaw CLI..."
+  step "[7/7] 安装 OpenClaw CLI..."
   install_openclaw || { warn "OpenClaw 安装失败，继续..."; failed=$((failed+1)); }
 
   echo
@@ -1594,7 +1627,7 @@ main_menu() {
     echo "日志文件: ${LOG_FILE}"
     echo
     echo "1) 🚀 系统一键初始化"
-    echo "   (sudo免密 + Node.js + pnpm + Docker + OpenClaw)"
+    echo "   (sudo免密 + Alias别名 + Node.js + pnpm + Docker + OpenClaw)"
     echo "2) 🔧 配置 sudo 免密（方案A）"
     echo "3) 🐳 Docker 管理"
     echo "4) 🦞 OpenClaw 安装"
