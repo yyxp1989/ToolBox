@@ -10,7 +10,7 @@ set -o pipefail
 # 4) 安装 OpenClaw CLI
 # 5) OpenClaw 菜单化运维（网关/doctor/配对等）
 
-VERSION="2.6.0"
+VERSION="2.6.1"
 LOG_FILE="/tmp/openclaw-menu.log"
 
 RED='\033[31m'
@@ -432,6 +432,46 @@ install_pnpm() {
   fi
 }
 
+uninstall_pnpm() {
+  if ! need_cmd pnpm; then
+    warn "系统中未检测到 pnpm，无需卸载。"
+    return 0
+  fi
+
+  warn "此操作将从系统中移除 pnpm。"
+  read -rp "确认卸载 pnpm？[y/N]: " cfm
+  if [[ ! "$cfm" =~ ^[Yy]$ ]]; then
+    return 0
+  fi
+
+  step "1. 正在清理 pnpm 程序..."
+  
+  # 尝试 corepack disable
+  if need_cmd corepack; then
+    as_root corepack disable pnpm 2>/dev/null || true
+  fi
+
+  # 尝试 npm uninstall
+  if need_cmd npm; then
+    run_cmd "npm 卸载 pnpm" npm uninstall -g pnpm 2>/dev/null
+  fi
+
+  step "2. 清理全局配置..."
+  local pnpm_home="/home/${TARGET_USER}/.local/share/pnpm"
+  read -rp "是否删除 pnpm 全局目录和配置 ($pnpm_home)? [y/N]: " cfm_clean
+  if [[ "$cfm_clean" =~ ^[Yy]$ ]]; then
+    rm -rf "$pnpm_home"
+    rm -f "/home/${TARGET_USER}/.pnpmrc"
+    # 尝试清理 .bashrc 中的 pnpm setup 注入
+    sed -i '/# pnpm/d' "/home/${TARGET_USER}/.bashrc" 2>/dev/null || true
+    sed -i '/export PNPM_HOME/d' "/home/${TARGET_USER}/.bashrc" 2>/dev/null || true
+    sed -i '/\$PNPM_HOME/d' "/home/${TARGET_USER}/.bashrc" 2>/dev/null || true
+    ok "pnpm 相关数据已清理"
+  fi
+
+  ok "pnpm 卸载完成"
+}
+
 # 配置 pnpm 全局 bin 目录（解决 ERR_PNPM_NO_GLOBAL_BIN_DIR）
 _setup_pnpm_global() {
   need_cmd pnpm || return 1
@@ -644,6 +684,7 @@ openclaw_install_menu() {
     echo "4) 轻量初始化 (setup + doctor --fix)"
     echo "5) 检查 OpenClaw 版本"
     echo "6) ❌ 卸载 OpenClaw"
+    echo "7) 🗑️  卸载 pnpm"
     echo "0) 返回主菜单"
     read -rp "请选择: " n
 
@@ -659,6 +700,7 @@ openclaw_install_menu() {
         pause
         ;;
       6) uninstall_openclaw; pause ;;
+      7) uninstall_pnpm; pause ;;
       0) return ;;
       *) warn "无效输入"; pause ;;
     esac
