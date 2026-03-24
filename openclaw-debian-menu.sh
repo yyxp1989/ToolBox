@@ -1088,10 +1088,13 @@ configure_vnc_password() {
   local vnc_dir="/home/${TARGET_USER}/.vnc"
   step "配置 VNC 密码..."
   mkdir -p "$vnc_dir"
+  chmod 700 "$vnc_dir" 2>/dev/null || true
   
-  # 使用 vncpasswd 设置密码
-  if vncpasswd 2>/dev/null; then
-    ok "VNC 密码配置成功"
+  # 显式指定密码文件路径，确保与 start_vnc 检查的路径一致
+  # 同时移除 2>/dev/null 以便用户看到潜在的交互提示或错误
+  if vncpasswd "$VNC_PASS_FILE"; then
+    chmod 600 "$VNC_PASS_FILE"
+    ok "VNC 密码配置成功 (保存至: $VNC_PASS_FILE)"
     # 连动触发
     read -rp "是否立即重启 VNC 服务以应用新密码？[y/N]: " cfm_restart
     if [[ "$cfm_restart" =~ ^[Yy]$ ]]; then
@@ -1099,6 +1102,7 @@ configure_vnc_password() {
     fi
   else
     err "VNC 密码配置失败"
+    return 1
   fi
 }
 
