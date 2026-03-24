@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 set -u
+set -o pipefail
 
 # OpenClaw Debian Menu Installer / Operator v2
 # 功能：
@@ -9,7 +10,7 @@ set -u
 # 4) 安装 OpenClaw CLI
 # 5) OpenClaw 菜单化运维（网关/doctor/配对等）
 
-VERSION="2.5.5"
+VERSION="2.6.0"
 LOG_FILE="/tmp/openclaw-menu.log"
 
 RED='\033[31m'
@@ -63,7 +64,8 @@ step() {
 }
 
 pause() {
-  read -rp "按回车继续..." _
+  local _dummy
+  read -rp "按回车继续..." _dummy
 }
 
 run_cmd() {
@@ -317,7 +319,7 @@ configure_nopasswd() {
     return 1
   fi
 
-  if as_root install -m 0440 "$tmpf" "$sudoers_file"; then
+  if as_root install -o root -g root -m 0440 "$tmpf" "$sudoers_file"; then
     rm -f "$tmpf"
     ok "已写入 $sudoers_file"
     info "从现在开始，${TARGET_USER} 使用 sudo 时将不再需要输入密码。"
@@ -346,15 +348,20 @@ install_nodejs() {
       major="${BASH_REMATCH[1]}"
       minor="${BASH_REMATCH[2]}"
       
-      if [ "$major" -ge 24 ] 2>/dev/null || { [ "$major" -eq 22 ] 2>/dev/null && [ "$minor" -ge 22 ] 2>/dev/null; }; then
-        ok "Node.js 版本满足要求 (≥22.22)"
-        return 0
-      else
-        warn "Node.js 版本较低，建议升级到 v22.22.0 或更高版本"
-        read -rp "是否尝试安装 Node.js 22.x LTS? [y/N]: " cfm
-        if [[ ! "$cfm" =~ ^[Yy]$ ]]; then
+      # 确保是数字再比较
+      if [[ "$major" =~ ^[0-9]+$ ]] && [[ "$minor" =~ ^[0-9]+$ ]]; then
+        if [ "$major" -ge 24 ] || { [ "$major" -eq 22 ] && [ "$minor" -ge 22 ]; }; then
+          ok "Node.js 版本满足要求 (≥22.22)"
           return 0
+        else
+          warn "Node.js 版本较低 ($node_ver)，建议升级到 v22.22.0 或更高版本"
+          read -rp "是否尝试安装 Node.js 22.x LTS? [y/N]: " cfm
+          if [[ ! "$cfm" =~ ^[Yy]$ ]]; then
+            return 0
+          fi
         fi
+      else
+        warn "版本号解析结果非数字，跳过自动比对"
       fi
     else
       warn "无法解析 Node.js 版本号"
@@ -534,6 +541,8 @@ check_docker_status() {
 # ==================== OpenClaw 安装 ====================
 
 install_openclaw() {
+  local pnpm_installed_oc=false
+
   if need_cmd openclaw; then
     local ver
     ver=$(openclaw --version 2>/dev/null || echo "未知")
@@ -899,12 +908,15 @@ install_vnc() {
   run_cmd_retry "安装 TigerVNC" 3 as_root apt-get install -y tigervnc-standalone-server tigervnc-common || return 1
 
   # 检查是否需要安装桌面环境
-  if ! dpkg -l | grep -q "xfce4\|gnome-shell\|kde-plasma\|lxde"; then
-    warn "未检测到桌面环境"
+  if ! dpkg -l | grep -qE "xfce4|gnome-shell|kde-plasma|lxde"; then
+    warn "未检测到已安装的桌面环境 (XFCE/GNOME/KDE/LXDE)"
     read -rp "是否安装 XFCE 轻量桌面环境？[y/N]: " cfm
     if [[ "$cfm" =~ ^[Yy]$ ]]; then
       step "安装 XFCE 桌面环境（可能需要较长时间）..."
-      run_cmd_retry "安装 XFCE" 3 as_root apt-get install -y xfce4 xfce4-goodies || warn "XFCE 安装失败，VNC 可能无法正常显示桌面"
+      run_cmd_retry "安装 XFCE" 3 as_root apt-get install -y xfce4 xfce4-goodies || warn "XFCE 安装失败"
+    else
+      warn "你选择了不安装桌面，VNC 连接后可能只能看到控制台 (xterm)"
+      pause
     fi
   fi
 
@@ -1096,6 +1108,10 @@ set_smb_share_path() {
   new_path="${new_path/#\~//home/${TARGET_USER}}"
   
   # 验证路径安全性
+  if [[ "$new_path" == *".."* ]]; then
+    err "路径不允许包含 '..' (禁止路径穿越)"
+    return 1
+  fi
   if [[ "$new_path" == *'$('* ]] || [[ "$new_path" == *'`'* ]]; then
     err "路径包含不允许的字符"
     return 1
@@ -1202,9 +1218,9 @@ configure_smb_share() {
     ok "已创建共享目录: ${share_path}"
   fi
 
-  # 设置权限
+  # 设置权限 (收紧为 700，仅限所有者访问以保护隐私)
   chown -R "${TARGET_USER}:${TARGET_USER}" "$share_path"
-  chmod -R 755 "$share_path"
+  chmod -R 700 "$share_path"
 
   # 备份原配置
   if [ -f "$SMB_CONF" ]; then
