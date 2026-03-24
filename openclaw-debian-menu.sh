@@ -9,7 +9,7 @@ set -u
 # 4) 安装 OpenClaw CLI
 # 5) OpenClaw 菜单化运维（网关/doctor/配对等）
 
-VERSION="2.5.3"
+VERSION="2.5.4"
 LOG_FILE="/tmp/openclaw-menu.log"
 
 RED='\033[31m'
@@ -1636,11 +1636,14 @@ main_menu() {
     echo "1) 🚀 系统一键初始化"
     echo "   (sudo免密 + Alias别名 + Node + Docker + OpenClaw安装与配置)"
     echo "2) 🔧 系统环境管理 (Alias/Docker/SSH/VNC/SMB)"
-    echo "3) 🦞 OpenClaw 安装与初始化"
-    echo "4) 🌐 OpenClaw 网关运维 (启动/重启/日志/Dashboard)"
+    echo "3) 🦞 OpenClaw 安装与初始化 (安装/卸载/初始化/onboard)"
+    echo "4) 🌐 OpenClaw 网关运维 (启动/停止/日志/Dashboard)"
     echo "5) 📱 聊天与节点管理 (配对/渠道/iOS/二维码)"
     echo "6) 🛠️ 诊断与高级工具 (Doctor/修复/审计/模型/更新)"
-    echo "7) 📊 状态总览"
+    echo "------------------------------------------"
+    echo "7) 🔄 一键重启网关 (Restart Gateway)"
+    echo "8) 💬 进入 TUI 聊天界面 (OpenClaw TUI)"
+    echo "9) 📊 状态总览"
     echo "0) 🚪 退出"
     read -rp "请选择: " n
 
@@ -1651,7 +1654,9 @@ main_menu() {
       4) openclaw_gateway_menu ;;
       5) openclaw_chat_nodes_menu ;;
       6) openclaw_advanced_menu ;;
-      7) show_status_summary ;;
+      7) ensure_openclaw_installed && openclaw gateway restart; pause ;;
+      8) ensure_openclaw_installed && openclaw tui ;;
+      9) show_status_summary ;;
       0)
         info "已退出。"
         exit 0
