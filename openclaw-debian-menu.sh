@@ -1194,6 +1194,39 @@ check_vnc_status() {
   echo "  启动脚本: /home/${TARGET_USER}/.vnc/xstartup"
 }
 
+uninstall_vnc() {
+  if ! need_cmd vncserver && ! need_cmd Xvnc; then
+    warn "系统中未检测到 VNC 服务器，无需卸载。"
+    return 0
+  fi
+
+  warn "此操作将从系统中移除 TigerVNC 服务器及其相关配置。"
+  read -rp "确认卸载 VNC 服务器？[y/N]: " cfm
+  if [[ ! "$cfm" =~ ^[Yy]$ ]]; then
+    return 0
+  fi
+
+  ensure_root || return 1
+
+  step "1. 正在停止所有 VNC 会话..."
+  # 尝试停止所有可能的显示号
+  vncserver -kill :* 2>/dev/null || true
+  as_root pkill Xvnc 2>/dev/null || true
+
+  step "2. 正在卸载 TigerVNC 软件包..."
+  run_cmd "移除 TigerVNC" as_root apt-get remove -y tigervnc-standalone-server tigervnc-common || true
+  run_cmd "清理依赖" as_root apt-get autoremove -y || true
+
+  step "3. 清理用户配置..."
+  read -rp "是否删除 VNC 配置文件和密码目录 (~/.vnc)? [y/N]: " cfm_clean
+  if [[ "$cfm_clean" =~ ^[Yy]$ ]]; then
+    rm -rf "/home/${TARGET_USER}/.vnc"
+    ok "VNC 用户配置已清理"
+  fi
+
+  ok "VNC 卸载完成"
+}
+
 vnc_menu() {
   while true; do
     clear
@@ -1205,6 +1238,7 @@ vnc_menu() {
     echo "5) 重启 VNC 服务"
     echo "6) 查看活动会话"
     echo "7) 查看 VNC 状态"
+    echo "8) ❌ 卸载 VNC 服务器"
     echo "0) 返回上一级"
     read -rp "请选择: " n
 
@@ -1216,6 +1250,7 @@ vnc_menu() {
       5) restart_vnc; pause ;;
       6) list_vnc_sessions; pause ;;
       7) check_vnc_status; pause ;;
+      8) uninstall_vnc; pause ;;
       0) return ;;
       *) warn "无效输入"; pause ;;
     esac
