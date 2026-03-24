@@ -284,7 +284,18 @@ show_status_summary() {
   # OpenClaw 状态
   echo -e "${CYAN}【OpenClaw】${NC}"
   if need_cmd openclaw; then
-    echo -e "  ${GREEN}✓${NC} 已安装: $(openclaw --version 2>/dev/null || echo '未知版本')"
+    local current_ver remote_ver
+    current_ver=$(openclaw --version 2>/dev/null | awk '{print $NF}' | tr -d 'v')
+    
+    # 尝试从 GitHub API 获取最新版本 (设置 2s 超时)
+    remote_ver=$(curl -s --connect-timeout 2 https://api.github.com/repos/openclaw/openclaw/releases/latest | grep '"tag_name":' | sed -E 's/.*"v?([^"]+)".*/\1/' || echo "")
+    
+    if [ -n "$remote_ver" ] && [ "$current_ver" != "$remote_ver" ]; then
+      echo -e "  ${GREEN}✓${NC} 已安装: v${current_ver} (${YELLOW}最新: v${remote_ver}, 建议更新${NC})"
+    else
+      echo -e "  ${GREEN}✓${NC} 已安装: v${current_ver}"
+    fi
+
     if openclaw gateway status >/dev/null 2>&1; then
       echo -e "  ${GREEN}✓${NC} 网关运行中"
     else
