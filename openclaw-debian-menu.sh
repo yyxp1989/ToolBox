@@ -1091,8 +1091,9 @@ configure_vnc_password() {
   chmod 700 "$vnc_dir" 2>/dev/null || true
   
   # 显式指定密码文件路径，确保与 start_vnc 检查的路径一致
-  # 同时移除 2>/dev/null 以便用户看到潜在的交互提示或错误
+  # 使用 printf 确保换行美观
   if vncpasswd "$VNC_PASS_FILE"; then
+    echo # 补偿 vncpasswd 吞掉的换行
     chmod 600 "$VNC_PASS_FILE"
     ok "VNC 密码配置成功 (保存至: $VNC_PASS_FILE)"
     # 连动触发
