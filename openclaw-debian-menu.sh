@@ -9,7 +9,7 @@ set -u
 # 4) 安装 OpenClaw CLI
 # 5) OpenClaw 菜单化运维（网关/doctor/配对等）
 
-VERSION="2.4.7"
+VERSION="2.4.8"
 LOG_FILE="/tmp/openclaw-menu.log"
 
 RED='\033[31m'
@@ -1572,7 +1572,7 @@ full_init() {
   echo "  4. 安装 pnpm 包管理器"
   echo "  5. 安装 Docker"
   echo "  6. 用户加入 docker 组"
-  echo "  7. 安装 OpenClaw CLI"
+  echo "  7. 安装并引导配置 OpenClaw (init + doctor + onboard)"
   echo
   read -rp "确认执行一键初始化？[y/N]: " cfm
   if [[ ! "$cfm" =~ ^[Yy]$ ]]; then
@@ -1600,8 +1600,16 @@ full_init() {
   step "[6/7] 用户加入 docker 组..."
   add_user_to_docker_group || { warn "添加用户到 docker 组失败，继续..."; failed=$((failed+1)); }
 
-  step "[7/7] 安装 OpenClaw CLI..."
-  install_openclaw || { warn "OpenClaw 安装失败，继续..."; failed=$((failed+1)); }
+  step "[7/7] 安装并引导配置 OpenClaw..."
+  if install_openclaw; then
+    init_openclaw
+    echo
+    step "启动交互式配置向导..."
+    info "请在接下来的提示中配置模型、渠道，并在最后一步选 'Yes' 安装系统服务。"
+    onboard_openclaw
+  else
+    warn "OpenClaw 安装失败"; failed=$((failed+1))
+  fi
 
   echo
   echo -e "${BLUE}════════════════════════════════════════${NC}"
@@ -1627,7 +1635,7 @@ main_menu() {
     echo "日志文件: ${LOG_FILE}"
     echo
     echo "1) 🚀 系统一键初始化"
-    echo "   (sudo免密 + Alias别名 + Node.js + pnpm + Docker + OpenClaw)"
+    echo "   (sudo免密 + Alias别名 + Node + Docker + OpenClaw安装与配置)"
     echo "2) 🔧 配置 sudo 免密（方案A）"
     echo "3) 🐳 Docker 管理"
     echo "4) 🦞 OpenClaw 安装"
