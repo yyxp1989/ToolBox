@@ -9,7 +9,7 @@ set -u
 # 4) 安装 OpenClaw CLI
 # 5) OpenClaw 菜单化运维（网关/doctor/配对等）
 
-VERSION="2.4.1"
+VERSION="2.4.2"
 LOG_FILE="/tmp/openclaw-menu.log"
 
 RED='\033[31m'
@@ -390,10 +390,15 @@ install_pnpm() {
 _setup_pnpm_global() {
   need_cmd pnpm || return 1
 
-  # 设置 PNPM_HOME 并运行 pnpm setup
+  # 设置 PNPM_HOME
   local pnpm_home="/home/${TARGET_USER}/.local/share/pnpm"
+  mkdir -p "$pnpm_home"
   export PNPM_HOME="$pnpm_home"
 
+  # 显式设置全局 bin 目录 (关键修复)
+  pnpm config set global-bin-dir "$pnpm_home" 2>/dev/null || true
+
+  # 运行 pnpm setup
   pnpm setup --force 2>/dev/null || true
 
   # 确保 PNPM_HOME 在当前 session 的 PATH 中
@@ -401,7 +406,7 @@ _setup_pnpm_global() {
     export PATH="${pnpm_home}:${PATH}"
   fi
 
-  info "pnpm 全局目录: ${pnpm_home}"
+  info "pnpm 全局目录已配置: ${pnpm_home}"
 }
 
 # ==================== Docker 安装 ====================
@@ -513,13 +518,21 @@ install_openclaw() {
   if need_cmd pnpm; then
     # 确保 pnpm 全局目录已配置
     _setup_pnpm_global 2>/dev/null
-    run_cmd_retry "pnpm 安装 openclaw" 3 pnpm add -g openclaw || return 1
-  elif need_cmd npm; then
-    warn "未检测到 pnpm，使用 npm 安装"
-    run_cmd_retry "npm 安装 openclaw" 3 npm install -g openclaw || return 1
-  else
-    err "未检测到 pnpm 或 npm，无法安装"
-    return 1
+    if run_cmd_retry "pnpm 安装 openclaw" 3 pnpm add -g openclaw; then
+      need_cmd openclaw && pnpm_installed_oc=true
+    else
+      warn "pnpm 安装失败，尝试 npm 回退方式..."
+    fi
+  fi
+
+  if [ "${pnpm_installed_oc:-false}" != "true" ]; then
+    if need_cmd npm; then
+      warn "使用 npm 安装 openclaw"
+      run_cmd_retry "npm 安装 openclaw" 3 npm install -g openclaw || return 1
+    else
+      err "未检测到 pnpm 或 npm，无法安装"
+      return 1
+    fi
   fi
 
   if need_cmd openclaw; then
