@@ -9,7 +9,7 @@ set -u
 # 4) 安装 OpenClaw CLI
 # 5) OpenClaw 菜单化运维（网关/doctor/配对等）
 
-VERSION="2.4.2"
+VERSION="2.4.3"
 LOG_FILE="/tmp/openclaw-menu.log"
 
 RED='\033[31m'
@@ -22,6 +22,9 @@ NC='\033[0m'
 
 # 必须先定义 TARGET_USER
 TARGET_USER="${SUDO_USER:-$USER}"
+
+# 扩展 PATH 确保能找到 sbin 下的系统命令（如 smbd, sshd）
+export PATH="$PATH:/usr/sbin:/sbin:/usr/local/sbin"
 
 # SMB 配置（默认路径改为 ~/.openclaw）
 SMB_CONF="/etc/samba/smb.conf"
@@ -99,7 +102,14 @@ run_cmd_retry() {
 }
 
 need_cmd() {
-  command -v "$1" >/dev/null 2>&1
+  if command -v "$1" >/dev/null 2>&1; then
+    return 0
+  fi
+  # 补充检查 sbin 目录（Debian 普通用户 PATH 往往不含 sbin）
+  if [ -x "/usr/sbin/$1" ] || [ -x "/sbin/$1" ] || [ -x "/usr/local/sbin/$1" ]; then
+    return 0
+  fi
+  return 1
 }
 
 is_root() {
