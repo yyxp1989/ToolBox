@@ -9,7 +9,7 @@ set -u
 # 4) 安装 OpenClaw CLI
 # 5) OpenClaw 菜单化运维（网关/doctor/配对等）
 
-VERSION="2.5.2"
+VERSION="2.5.3"
 LOG_FILE="/tmp/openclaw-menu.log"
 
 RED='\033[31m'
@@ -611,7 +611,7 @@ onboard_openclaw() {
     return 1
   fi
 
-  step "运行 OpenClaw onboarding（旧版向导）..."
+  step "运行 OpenClaw Onboarding 交互式向导..."
   openclaw onboard --install-daemon
 }
 
