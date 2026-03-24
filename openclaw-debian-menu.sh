@@ -9,7 +9,7 @@ set -u
 # 4) 安装 OpenClaw CLI
 # 5) OpenClaw 菜单化运维（网关/doctor/配对等）
 
-VERSION="2.4.8"
+VERSION="2.5.0"
 LOG_FILE="/tmp/openclaw-menu.log"
 
 RED='\033[31m'
@@ -599,13 +599,14 @@ ensure_openclaw_installed() {
 openclaw_install_menu() {
   while true; do
     clear
-    echo -e "${BLUE}===== OpenClaw 安装菜单 =====${NC}"
+    echo -e "${BLUE}===== OpenClaw 安装与初始化 =====${NC}"
     echo "1) 安装/更新 OpenClaw CLI (pnpm优先)"
     echo "2) 安装 pnpm 包管理器"
     echo "3) 初始化工作空间 (openclaw init + doctor --fix)"
     echo "4) 旧版 Onboarding (openclaw onboard --install-daemon)"
     echo "5) 检查 OpenClaw 版本"
-    echo "0) 返回上一级"
+    echo "6) ❌ 卸载 OpenClaw"
+    echo "0) 返回主菜单"
     read -rp "请选择: " n
 
     case "$n" in
@@ -619,6 +620,7 @@ openclaw_install_menu() {
         fi
         pause
         ;;
+      6) uninstall_openclaw; pause ;;
       0) return ;;
       *) warn "无效输入"; pause ;;
     esac
@@ -628,167 +630,105 @@ openclaw_install_menu() {
 openclaw_gateway_menu() {
   while true; do
     clear
-    echo -e "${BLUE}===== OpenClaw 网关菜单 =====${NC}"
+    echo -e "${BLUE}===== OpenClaw 网关运维 =====${NC}"
     echo "1) 网关状态 (openclaw gateway status)"
-    echo "2) 重启网关 (openclaw gateway restart)"
-    echo "3) 启动网关 (openclaw gateway start)"
+    echo "2) 启动网关 (openclaw gateway start)"
+    echo "3) 重启网关 (openclaw gateway restart)"
     echo "4) 停止网关 (openclaw gateway stop)"
     echo "5) 查看网关日志 (openclaw logs)"
-    echo "6) 重新安装/配置系统服务 (onboard --install-daemon)"
-    echo "0) 返回上一级"
+    echo "6) 打开 Web Dashboard (浏览器)"
+    echo "7) 重新安装/配置系统服务 (onboard)"
+    echo "0) 返回主菜单"
     read -rp "请选择: " n
 
     case "$n" in
       1) ensure_openclaw_installed && openclaw gateway status; pause ;;
-      2) ensure_openclaw_installed && openclaw gateway restart; pause ;;
-      3) ensure_openclaw_installed && openclaw gateway start; pause ;;
+      2) ensure_openclaw_installed && openclaw gateway start; pause ;;
+      3) ensure_openclaw_installed && openclaw gateway restart; pause ;;
       4) ensure_openclaw_installed && openclaw gateway stop; pause ;;
       5) ensure_openclaw_installed && openclaw logs; pause ;;
-      6) onboard_openclaw; pause ;;
+      6) ensure_openclaw_installed && openclaw dashboard; pause ;;
+      7) onboard_openclaw; pause ;;
       0) return ;;
       *) warn "无效输入"; pause ;;
     esac
   done
 }
 
-openclaw_doctor_menu() {
+openclaw_advanced_menu() {
   while true; do
     clear
-    echo -e "${BLUE}===== OpenClaw 诊断菜单 =====${NC}"
-    echo "1) 执行 doctor 诊断 (openclaw doctor)"
-    echo "2) 自动修复环境 (openclaw doctor --fix)"
-    echo "3) 查看状态 (openclaw status)"
-    echo "4) 渠道探测 (openclaw channels status --probe)"
-    echo "5) 查看渠道日志 (openclaw channels logs)"
-    echo "0) 返回上一级"
+    echo -e "${BLUE}===== 诊断与高级工具 =====${NC}"
+    echo "1) 执行 doctor 诊断"
+    echo "2) 自动修复环境 (doctor --fix)"
+    echo "3) 安全审计 (security audit)"
+    echo "4) 查看模型状态 (models status)"
+    echo "5) 管理模型别名 (models aliases)"
+    echo "6) 查看/管理配置 (config get/set)"
+    echo "7) 查看/维护会话 (sessions)"
+    echo "8) 查看渠道日志 (channels logs)"
+    echo "9) 🔄 更新 OpenClaw (最新版)"
+    echo "0) 返回主菜单"
     read -rp "请选择: " n
 
     case "$n" in
       1) ensure_openclaw_installed && openclaw doctor; pause ;;
       2) ensure_openclaw_installed && openclaw doctor --fix; pause ;;
-      3) ensure_openclaw_installed && openclaw status; pause ;;
-      4) ensure_openclaw_installed && openclaw channels status --probe; pause ;;
-      5) ensure_openclaw_installed && openclaw channels logs; pause ;;
+      3) ensure_openclaw_installed && openclaw security audit; pause ;;
+      4) ensure_openclaw_installed && openclaw models status; pause ;;
+      5) ensure_openclaw_installed && openclaw models aliases; pause ;;
+      6) ensure_openclaw_installed && openclaw config; pause ;;
+      7) ensure_openclaw_installed && openclaw sessions; pause ;;
+      8) ensure_openclaw_installed && openclaw channels logs; pause ;;
+      9) install_openclaw; pause ;;
       0) return ;;
       *) warn "无效输入"; pause ;;
     esac
   done
 }
 
-openclaw_pairing_menu() {
+openclaw_chat_nodes_menu() {
   while true; do
     clear
-    echo -e "${BLUE}===== OpenClaw 配对/聊天菜单 =====${NC}"
-    echo "1) 查看待配对请求 (openclaw pairing list)"
-    echo "2) 批准配对 (openclaw pairing approve)"
-    echo "3) 查看渠道列表 (openclaw channels list)"
-    echo "4) 查看渠道状态 (openclaw channels status)"
-    echo "5) 添加渠道账号 (openclaw channels add)"
-    echo "0) 返回上一级"
+    echo -e "${BLUE}===== 聊天与节点管理 =====${NC}"
+    echo "--- 配对管理 (Chat/DM) ---"
+    echo "1) 查看待配对请求 (pairing list)"
+    echo "2) 批准配对 (pairing approve)"
+    echo "--- 渠道管理 (Channels) ---"
+    echo "3) 查看渠道列表"
+    echo "4) 查看渠道状态 (probe 探测)"
+    echo "5) 添加渠道账号"
+    echo "--- 移动节点 (iOS/Android) ---"
+    echo "6) 查看节点状态"
+    echo "7) 生成 iOS 配对二维码 (QR)"
+    echo "8) 批准节点配对 (node approve)"
+    echo "0) 返回主菜单"
     read -rp "请选择: " n
 
     case "$n" in
-      1)
-        ensure_openclaw_installed && openclaw pairing list
-        pause
-        ;;
-      2)
+      1) ensure_openclaw_installed && openclaw pairing list; pause ;;
+      2) 
         ensure_openclaw_installed || { pause; continue; }
         read -rp "请输入 pairing code: " code
-        if [ -z "${code:-}" ]; then
-          warn "code 不能为空"
-        else
-          openclaw pairing approve "$code"
-        fi
-        pause
-        ;;
+        [ -n "$code" ] && openclaw pairing approve "$code"
+        pause ;;
       3) ensure_openclaw_installed && openclaw channels list; pause ;;
-      4) ensure_openclaw_installed && openclaw channels status; pause ;;
+      4) ensure_openclaw_installed && openclaw channels status --probe; pause ;;
       5) ensure_openclaw_installed && openclaw channels add; pause ;;
-      0) return ;;
-      *) warn "无效输入"; pause ;;
-    esac
-  done
-}
-
-# ==================== OpenClaw 工具菜单 ====================
-
-openclaw_tools_menu() {
-  while true; do
-    clear
-    echo -e "${BLUE}===== OpenClaw 工具菜单 =====${NC}"
-    echo "1) 打开 Dashboard 控制界面"
-    echo "2) 查看模型状态"
-    echo "3) 查看配置"
-    echo "4) 查看会话列表"
-    echo "5) 安全审计"
-    echo "6) 更新 OpenClaw"
-    echo "0) 返回上一级"
-    read -rp "请选择: " n
-
-    case "$n" in
-      1) 
-        ensure_openclaw_installed && openclaw dashboard
-        pause
-        ;;
-      2) 
-        ensure_openclaw_installed && openclaw models status
-        pause
-        ;;
-      3) 
-        ensure_openclaw_installed && openclaw config get
-        pause
-        ;;
-      4) 
-        ensure_openclaw_installed && openclaw sessions
-        pause
-        ;;
-      5) 
-        ensure_openclaw_installed && openclaw security audit
-        pause
-        ;;
-      6) 
-        ensure_openclaw_installed && openclaw update
-        pause
-        ;;
-      0) return ;;
-      *) warn "无效输入"; pause ;;
-    esac
-  done
-}
-
-# ==================== 节点管理菜单 ====================
-
-openclaw_nodes_menu() {
-  while true; do
-    clear
-    echo -e "${BLUE}===== OpenClaw 节点管理菜单 =====${NC}"
-    echo "1) 查看节点状态 (已配对设备)"
-    echo "2) 查看待配对请求"
-    echo "3) 批准节点配对"
-    echo "4) 生成 iOS 配对二维码"
-    echo "0) 返回上一级"
-    read -rp "请选择: " n
-
-    case "$n" in
-      1) ensure_openclaw_installed && openclaw nodes status; pause ;;
-      2) ensure_openclaw_installed && openclaw nodes pending; pause ;;
-      3)
+      6) ensure_openclaw_installed && openclaw nodes status; pause ;;
+      7) ensure_openclaw_installed && openclaw qr; pause ;;
+      8)
         ensure_openclaw_installed || { pause; continue; }
         read -rp "请输入节点配对 code: " node_code
-        if [ -z "${node_code:-}" ]; then
-          warn "code 不能为空"
-        else
-          openclaw nodes approve "$node_code"
-        fi
-        pause
-        ;;
-      4) ensure_openclaw_installed && openclaw qr; pause ;;
+        [ -n "$node_code" ] && openclaw nodes approve "$node_code"
+        pause ;;
       0) return ;;
       *) warn "无效输入"; pause ;;
     esac
   done
 }
+
+# ==================== Docker 管理 ====================
 
 docker_menu() {
   while true; do
@@ -1528,33 +1468,63 @@ show_fileshare_status() {
   echo -e "${BLUE}════════════════════════════════════════${NC}"
 }
 
-# ==================== 快捷启动配置 ====================
-
-setup_shortcut() {
-  local script_dest="/home/${TARGET_USER}/openclaw-menu.sh"
-  local bashrc="/home/${TARGET_USER}/.bashrc"
-  
-  step "配置快捷启动别名 (alias y)..."
-  
-  # 1. 保存当前脚本到家目录
-  if [ "$(realpath "$0")" != "$(realpath "$script_dest")" ]; then
-    cp "$0" "$script_dest"
-    chmod +x "$script_dest"
-    ok "脚本已保存至: $script_dest"
+uninstall_openclaw() {
+  warn "此操作将从系统中移除 OpenClaw。"
+  read -rp "确认卸载 OpenClaw？[y/N]: " cfm
+  if [[ ! "$cfm" =~ ^[Yy]$ ]]; then
+    return 0
   fi
 
-  # 2. 注入别名到 .bashrc
-  if grep -q "alias y=" "$bashrc"; then
-    # 如果已存在，则更新
-    sed -i "s|alias y=.*|alias y='$script_dest'|" "$bashrc"
-    ok "快捷别名 'y' 已更新"
-  else
-    echo "alias y='$script_dest'" >> "$bashrc"
-    ok "快捷别名 'y' 已添加"
+  step "1. 正在停止并卸载系统服务..."
+  as_root systemctl stop openclaw 2>/dev/null || true
+  as_root systemctl disable openclaw 2>/dev/null || true
+  as_root rm -f /etc/systemd/system/openclaw.service 2>/dev/null || true
+  as_root systemctl daemon-reload
+
+  step "2. 正在移除全局包..."
+  if need_cmd pnpm; then
+    pnpm remove -g openclaw 2>/dev/null
+  fi
+  if need_cmd npm; then
+    npm uninstall -g openclaw 2>/dev/null
   fi
 
-  info "配置已完成。请手动执行 'source ~/.bashrc' 或重新登录使别名生效。"
-  warn "生效后，你只需在终端输入 'y' 即可启动本菜单。"
+  step "3. 清理配置选项..."
+  read -rp "是否删除所有配置文件、数据库和工作空间 (~/.openclaw)？[y/N]: " cfm_clean
+  if [[ "$cfm_clean" =~ ^[Yy]$ ]]; then
+    rm -rf "/home/${TARGET_USER}/.openclaw"
+    ok "配置已完全清理"
+  fi
+
+  ok "OpenClaw 卸载完成"
+}
+
+# ==================== 系统环境菜单 ====================
+
+system_env_menu() {
+  while true; do
+    clear
+    echo -e "${BLUE}===== 系统环境管理 =====${NC}"
+    echo "1) 配置 sudo 免密 (方案A)"
+    echo "2) 配置快捷启动别名 (alias y)"
+    echo "3) Docker 管理"
+    echo "4) SSH 管理"
+    echo "5) VNC 管理"
+    echo "6) SMB 共享管理"
+    echo "0) 返回主菜单"
+    read -rp "请选择: " n
+
+    case "$n" in
+      1) configure_nopasswd; pause ;;
+      2) setup_shortcut; pause ;;
+      3) docker_menu ;;
+      4) ssh_menu ;;
+      5) vnc_menu ;;
+      6) smb_menu ;;
+      0) return ;;
+      *) warn "无效输入"; pause ;;
+    esac
+  done
 }
 
 # ==================== 一键初始化 ====================
@@ -1636,33 +1606,23 @@ main_menu() {
     echo
     echo "1) 🚀 系统一键初始化"
     echo "   (sudo免密 + Alias别名 + Node + Docker + OpenClaw安装与配置)"
-    echo "2) 🔧 配置 sudo 免密（方案A）"
-    echo "3) 🐳 Docker 管理"
-    echo "4) 🦞 OpenClaw 安装"
-    echo "5) 🌐 OpenClaw 网关"
-    echo "6) 🏥 OpenClaw 诊断与修复"
-    echo "7) 📱 Chat/配对管理"
-    echo "8) 🔧 OpenClaw 工具 (Dashboard/模型/更新)"
-    echo "9) 📱 节点管理 (iOS/Android 配对)"
-    echo "10) 🔐 远程访问 (SSH/VNC)"
-    echo "11) 📁 文件共享 (SMB)"
-    echo "12) 📊 状态总览"
+    echo "2) 🔧 系统环境管理 (Alias/Docker/SSH/VNC/SMB)"
+    echo "3) 🦞 OpenClaw 安装与初始化"
+    echo "4) 🌐 OpenClaw 网关运维 (启动/重启/日志/Dashboard)"
+    echo "5) 📱 聊天与节点管理 (配对/渠道/iOS/二维码)"
+    echo "6) 🛠️ 诊断与高级工具 (Doctor/修复/审计/模型/更新)"
+    echo "7) 📊 状态总览"
     echo "0) 🚪 退出"
     read -rp "请选择: " n
 
     case "$n" in
       1) full_init ;;
-      2) configure_nopasswd; pause ;;
-      3) docker_menu ;;
-      4) openclaw_install_menu ;;
-      5) openclaw_gateway_menu ;;
-      6) openclaw_doctor_menu ;;
-      7) openclaw_pairing_menu ;;
-      8) openclaw_tools_menu ;;
-      9) openclaw_nodes_menu ;;
-      10) remote_access_menu ;;
-      11) file_share_menu ;;
-      12) show_status_summary ;;
+      2) system_env_menu ;;
+      3) openclaw_install_menu ;;
+      4) openclaw_gateway_menu ;;
+      5) openclaw_chat_nodes_menu ;;
+      6) openclaw_advanced_menu ;;
+      7) show_status_summary ;;
       0)
         info "已退出。"
         exit 0
