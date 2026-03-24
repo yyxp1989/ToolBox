@@ -358,14 +358,23 @@ install_pnpm() {
   fi
 
   step "安装 pnpm..."
-  
-  # 使用 corepack 启用 pnpm（Node.js 16.13+ 内置）
-  if corepack enable 2>/dev/null; then
-    ok "已通过 corepack 启用 pnpm"
-  else
-    # 备选：使用 npm 安装
-    run_cmd_retry "npm 安装 pnpm" 3 npm install -g pnpm || return 1
+
+  # 方式 1：corepack（需要提权）
+  if need_cmd corepack; then
+    info "通过 corepack 启用 pnpm..."
+    if as_root corepack enable pnpm 2>/dev/null; then
+      # corepack enable 只是注册，需要 prepare 真正安装
+      corepack prepare pnpm@latest --activate 2>/dev/null || true
+      if need_cmd pnpm; then
+        ok "已通过 corepack 安装 pnpm: $(pnpm --version)"
+        return 0
+      fi
+    fi
+    warn "corepack 方式失败，尝试 npm 安装..."
   fi
+
+  # 方式 2：npm 全局安装
+  run_cmd_retry "npm 安装 pnpm" 3 npm install -g pnpm || return 1
 
   if need_cmd pnpm; then
     ok "pnpm 安装完成: $(pnpm --version)"
