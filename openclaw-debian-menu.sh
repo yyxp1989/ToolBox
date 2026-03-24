@@ -9,7 +9,7 @@ set -u
 # 4) 安装 OpenClaw CLI
 # 5) OpenClaw 菜单化运维（网关/doctor/配对等）
 
-VERSION="2.4.3"
+VERSION="2.4.4"
 LOG_FILE="/tmp/openclaw-menu.log"
 
 RED='\033[31m'
@@ -1216,6 +1216,12 @@ set_smb_share_path() {
       ok "已创建目录: ${new_path}"
     fi
   fi
+
+  # 连动触发：询问是否立即写入配置
+  read -rp "是否立即将新路径应用到 Samba 配置文件？[y/N]: " cfm_apply
+  if [[ "$cfm_apply" =~ ^[Yy]$ ]]; then
+    configure_smb_share
+  fi
 }
 
 install_smb() {
@@ -1282,6 +1288,9 @@ configure_smb_share() {
     return 0
   fi
 
+  # 关键修复：确保父目录有执行权限，否则 Windows 无法访问隐藏文件夹
+  as_root chmod 755 "/home/${TARGET_USER}" 2>/dev/null || true
+
   # 创建共享目录
   if [ ! -d "$share_path" ]; then
     mkdir -p "$share_path"
@@ -1334,6 +1343,12 @@ EOF
     ok "配置语法检查通过"
   else
     warn "配置可能存在问题，请检查 ${SMB_CONF}"
+  fi
+
+  # 连动触发：询问是否立即重启服务
+  read -rp "是否立即重启 Samba 服务以生效？[y/N]: " cfm_restart
+  if [[ "$cfm_restart" =~ ^[Yy]$ ]]; then
+    restart_smb
   fi
 }
 
