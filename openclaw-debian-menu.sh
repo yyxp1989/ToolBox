@@ -130,6 +130,35 @@ ensure_root() {
   return 1
 }
 
+# ==================== 快捷启动配置 ====================
+
+setup_shortcut() {
+  local script_dest="/home/${TARGET_USER}/openclaw-menu.sh"
+  local bashrc="/home/${TARGET_USER}/.bashrc"
+  
+  step "配置快捷启动别名 (alias y)..."
+  
+  # 1. 保存当前脚本到家目录
+  if [ ! -f "$script_dest" ] || [ "$(realpath "$0")" != "$(realpath "$script_dest")" ]; then
+    cp "$0" "$script_dest"
+    chmod +x "$script_dest"
+    ok "脚本已保存至: $script_dest"
+  fi
+
+  # 2. 注入别名到 .bashrc
+  if grep -q "alias y=" "$bashrc"; then
+    # 如果已存在，则更新
+    sed -i "s|alias y=.*|alias y='$script_dest'|" "$bashrc"
+    ok "快捷别名 'y' 已更新"
+  else
+    echo "alias y='$script_dest'" >> "$bashrc"
+    ok "快捷别名 'y' 已添加"
+  fi
+
+  info "配置已完成。请手动执行 'source ~/.bashrc' 或重新登录使别名生效。"
+  warn "生效后，你只需在终端输入 'y' 即可启动本菜单。"
+}
+
 as_root() {
   if is_root; then
     "$@"
@@ -1525,35 +1554,6 @@ system_env_menu() {
       *) warn "无效输入"; pause ;;
     esac
   done
-}
-
-# ==================== 快捷启动配置 ====================
-
-setup_shortcut() {
-  local script_dest="/home/${TARGET_USER}/openclaw-menu.sh"
-  local bashrc="/home/${TARGET_USER}/.bashrc"
-  
-  step "配置快捷启动别名 (alias y)..."
-  
-  # 1. 保存当前脚本到家目录
-  if [ ! -f "$script_dest" ] || [ "$(realpath "$0")" != "$(realpath "$script_dest")" ]; then
-    cp "$0" "$script_dest"
-    chmod +x "$script_dest"
-    ok "脚本已保存至: $script_dest"
-  fi
-
-  # 2. 注入别名到 .bashrc
-  if grep -q "alias y=" "$bashrc"; then
-    # 如果已存在，则更新
-    sed -i "s|alias y=.*|alias y='$script_dest'|" "$bashrc"
-    ok "快捷别名 'y' 已更新"
-  else
-    echo "alias y='$script_dest'" >> "$bashrc"
-    ok "快捷别名 'y' 已添加"
-  fi
-
-  info "配置已完成。请手动执行 'source ~/.bashrc' 或重新登录使别名生效。"
-  warn "生效后，你只需在终端输入 'y' 即可启动本菜单。"
 }
 
 # ==================== 一键初始化 ====================
