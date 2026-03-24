@@ -9,7 +9,7 @@ set -u
 # 4) 安装 OpenClaw CLI
 # 5) OpenClaw 菜单化运维（网关/doctor/配对等）
 
-VERSION="2.5.1"
+VERSION="2.5.2"
 LOG_FILE="/tmp/openclaw-menu.log"
 
 RED='\033[31m'
@@ -557,7 +557,7 @@ install_openclaw() {
   if need_cmd pnpm; then
     # 确保 pnpm 全局目录已配置
     _setup_pnpm_global 2>/dev/null
-    if run_cmd_retry "pnpm 安装 openclaw" 3 pnpm add -g openclaw; then
+    if run_cmd_retry "pnpm 安装 openclaw" 3 pnpm add -g openclaw@latest; then
       need_cmd openclaw && pnpm_installed_oc=true
     else
       warn "pnpm 安装失败，尝试 npm 回退方式..."
@@ -567,7 +567,7 @@ install_openclaw() {
   if [ "${pnpm_installed_oc:-false}" != "true" ]; then
     if need_cmd npm; then
       warn "使用 npm 安装 openclaw"
-      run_cmd_retry "npm 安装 openclaw" 3 npm install -g openclaw || return 1
+      run_cmd_retry "npm 安装 openclaw" 3 npm install -g openclaw@latest || return 1
     else
       err "未检测到 pnpm 或 npm，无法安装"
       return 1
@@ -629,10 +629,10 @@ openclaw_install_menu() {
   while true; do
     clear
     echo -e "${BLUE}===== OpenClaw 安装与初始化 =====${NC}"
-    echo "1) 安装/更新 OpenClaw CLI (pnpm优先)"
+    echo "1) 安装/更新 OpenClaw CLI (@latest)"
     echo "2) 安装 pnpm 包管理器"
-    echo "3) 初始化工作空间 (openclaw setup + doctor --fix)"
-    echo "4) 旧版 Onboarding (openclaw onboard --install-daemon)"
+    echo "3) 🚀 推荐初始化 (onboard --install-daemon)"
+    echo "4) 轻量初始化 (setup + doctor --fix)"
     echo "5) 检查 OpenClaw 版本"
     echo "6) ❌ 卸载 OpenClaw"
     echo "0) 返回主菜单"
@@ -641,8 +641,8 @@ openclaw_install_menu() {
     case "$n" in
       1) install_openclaw; pause ;;
       2) install_pnpm; pause ;;
-      3) init_openclaw; pause ;;
-      4) onboard_openclaw; pause ;;
+      3) onboard_openclaw; pause ;;
+      4) init_openclaw; pause ;;
       5)
         if ensure_openclaw_installed; then
           openclaw --version
