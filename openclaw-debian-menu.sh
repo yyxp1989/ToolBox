@@ -9,7 +9,7 @@ set -u
 # 4) 安装 OpenClaw CLI
 # 5) OpenClaw 菜单化运维（网关/doctor/配对等）
 
-VERSION="2.4.0"
+VERSION="2.4.1"
 LOG_FILE="/tmp/openclaw-menu.log"
 
 RED='\033[31m'
@@ -256,8 +256,8 @@ configure_nopasswd() {
   local sudoers_file="/etc/sudoers.d/${TARGET_USER}-nopasswd"
   local line="${TARGET_USER} ALL=(ALL:ALL) NOPASSWD: ALL"
 
-  # 检查是否已配置
-  if [ -f "$sudoers_file" ] && grep -q "$line" "$sudoers_file" 2>/dev/null; then
+  # 检查是否已配置（sudoers 文件需要 root 读取）
+  if as_root test -f "$sudoers_file" && as_root grep -q "$line" "$sudoers_file" 2>/dev/null; then
     ok "用户 ${TARGET_USER} 已配置 sudo 免密。"
     return 0
   fi
@@ -389,7 +389,15 @@ install_docker() {
   run_cmd_retry "安装基础依赖" 3 as_root apt-get install -y ca-certificates curl gnupg lsb-release || return 1
 
   run_cmd "创建 keyrings 目录" as_root install -m 0755 -d /etc/apt/keyrings || return 1
-  run_cmd_retry "下载 Docker GPG key" 3 bash -c "curl -fsSL https://download.docker.com/linux/debian/gpg | as_root gpg --dearmor -o /etc/apt/keyrings/docker.gpg" || return 1
+
+  step "下载 Docker GPG key..."
+  if curl -fsSL https://download.docker.com/linux/debian/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg; then
+    ok "Docker GPG key 下载成功"
+  else
+    err "Docker GPG key 下载失败"
+    return 1
+  fi
+
   run_cmd "设置 Docker GPG key 权限" as_root chmod a+r /etc/apt/keyrings/docker.gpg || return 1
 
   local arch codename repo_line
@@ -397,7 +405,8 @@ install_docker() {
   codename="$(. /etc/os-release && echo "$VERSION_CODENAME")"
   repo_line="deb [arch=${arch} signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/debian ${codename} stable"
 
-  run_cmd "写入 Docker apt 源" bash -c "echo '$repo_line' | as_root tee /etc/apt/sources.list.d/docker.list >/dev/null" || return 1
+  echo "$repo_line" | as_root tee /etc/apt/sources.list.d/docker.list >/dev/null || { err "写入 Docker apt 源失败"; return 1; }
+  ok "Docker apt 源写入成功"
   run_cmd_retry "刷新 apt 索引" 3 as_root apt-get update || return 1
 
   run_cmd_retry "安装 Docker CE" 3 as_root apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin || return 1
@@ -889,8 +898,9 @@ configure_vnc_password() {
     return 1
   fi
 
+  local vnc_dir="/home/${TARGET_USER}/.vnc"
   step "配置 VNC 密码..."
-  mkdir -p "${HOME}/.vnc"
+  mkdir -p "$vnc_dir"
   
   # 使用 vncpasswd 设置密码
   vncpasswd 2>/dev/null && ok "VNC 密码配置成功"
@@ -910,9 +920,10 @@ start_vnc() {
   step "启动 VNC 服务器..."
   
   # 创建 xstartup 文件（如果不存在）
-  local xstartup="${HOME}/.vnc/xstartup"
+  local vnc_dir="/home/${TARGET_USER}/.vnc"
+  local xstartup="${vnc_dir}/xstartup"
   if [ ! -f "$xstartup" ]; then
-    mkdir -p "${HOME}/.vnc"
+    mkdir -p "$vnc_dir"
     cat > "$xstartup" << 'EOF'
 #!/bin/bash
 unset SESSION_MANAGER
@@ -983,8 +994,8 @@ check_vnc_status() {
   ip=$(hostname -I | awk '{print $1}')
   echo "--- 连接信息 ---"
   echo "  默认地址: ${ip}:5901 (显示号 :1)"
-  echo "  配置文件: ${HOME}/.vnc/"
-  echo "  启动脚本: ${HOME}/.vnc/xstartup"
+  echo "  配置文件: /home/${TARGET_USER}/.vnc/"
+  echo "  启动脚本: /home/${TARGET_USER}/.vnc/xstartup"
 }
 
 vnc_menu() {
@@ -1245,8 +1256,8 @@ configure_smb_share() {
     ' "$SMB_CONF" > "$tmp_conf" && as_root mv "$tmp_conf" "$SMB_CONF"
   fi
 
-  # 添加共享配置
-  cat >> "$SMB_CONF" << EOF
+  # 添加共享配置（需要 root 权限写入 /etc/samba/smb.conf）
+  as_root tee -a "$SMB_CONF" >/dev/null << EOF
 
 [${SMB_SHARE_NAME}]
    comment = OpenClaw SMB Share
@@ -1442,10 +1453,11 @@ full_init() {
   echo
   warn "此操作将依次执行："
   echo "  1. 配置 sudo 免密"
-  echo "  2. 安装 Node.js"
-  echo "  3. 安装 Docker"
-  echo "  4. 用户加入 docker 组"
-  echo "  5. 安装 OpenClaw CLI"
+  echo "  2. 安装 Node.js (v22.22+)"
+  echo "  3. 安装 pnpm 包管理器"
+  echo "  4. 安装 Docker"
+  echo "  5. 用户加入 docker 组"
+  echo "  6. 安装 OpenClaw CLI"
   echo
   read -rp "确认执行一键初始化？[y/N]: " cfm
   if [[ ! "$cfm" =~ ^[Yy]$ ]]; then
@@ -1455,19 +1467,22 @@ full_init() {
 
   local failed=0
 
-  step "[1/5] 配置 sudo 免密..."
+  step "[1/6] 配置 sudo 免密..."
   configure_nopasswd || { warn "sudo 免密配置失败，继续..."; failed=$((failed+1)); }
 
-  step "[2/5] 安装 Node.js..."
+  step "[2/6] 安装 Node.js..."
   install_nodejs || { warn "Node.js 安装失败，继续..."; failed=$((failed+1)); }
 
-  step "[3/5] 安装 Docker..."
+  step "[3/6] 安装 pnpm..."
+  install_pnpm || { warn "pnpm 安装失败，继续..."; failed=$((failed+1)); }
+
+  step "[4/6] 安装 Docker..."
   install_docker || { warn "Docker 安装失败，继续..."; failed=$((failed+1)); }
 
-  step "[4/5] 用户加入 docker 组..."
+  step "[5/6] 用户加入 docker 组..."
   add_user_to_docker_group || { warn "添加用户到 docker 组失败，继续..."; failed=$((failed+1)); }
 
-  step "[5/5] 安装 OpenClaw CLI..."
+  step "[6/6] 安装 OpenClaw CLI..."
   install_openclaw || { warn "OpenClaw 安装失败，继续..."; failed=$((failed+1)); }
 
   echo
@@ -1494,7 +1509,7 @@ main_menu() {
     echo "日志文件: ${LOG_FILE}"
     echo
     echo "1) 🚀 系统一键初始化"
-    echo "   (sudo免密 + Node.js + Docker + OpenClaw)"
+    echo "   (sudo免密 + Node.js + pnpm + Docker + OpenClaw)"
     echo "2) 🔧 配置 sudo 免密（方案A）"
     echo "3) 🐳 Docker 管理"
     echo "4) 🦞 OpenClaw 安装"
