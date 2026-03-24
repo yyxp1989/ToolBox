@@ -9,7 +9,7 @@ set -u
 # 4) 安装 OpenClaw CLI
 # 5) OpenClaw 菜单化运维（网关/doctor/配对等）
 
-VERSION="2.5.0"
+VERSION="2.5.1"
 LOG_FILE="/tmp/openclaw-menu.log"
 
 RED='\033[31m'
@@ -590,8 +590,8 @@ init_openclaw() {
   fi
 
   step "初始化 OpenClaw 配置与工作空间..."
-  info "执行: openclaw init"
-  openclaw init
+  info "执行: openclaw setup"
+  openclaw setup
 
   echo
   step "运行自检并修复潜在环境冲突..."
@@ -631,7 +631,7 @@ openclaw_install_menu() {
     echo -e "${BLUE}===== OpenClaw 安装与初始化 =====${NC}"
     echo "1) 安装/更新 OpenClaw CLI (pnpm优先)"
     echo "2) 安装 pnpm 包管理器"
-    echo "3) 初始化工作空间 (openclaw init + doctor --fix)"
+    echo "3) 初始化工作空间 (openclaw setup + doctor --fix)"
     echo "4) 旧版 Onboarding (openclaw onboard --install-daemon)"
     echo "5) 检查 OpenClaw 版本"
     echo "6) ❌ 卸载 OpenClaw"
@@ -1571,7 +1571,7 @@ full_init() {
   echo "  4. 安装 pnpm 包管理器"
   echo "  5. 安装 Docker"
   echo "  6. 用户加入 docker 组"
-  echo "  7. 安装并引导配置 OpenClaw (init + doctor + onboard)"
+  echo "  7. 安装并引导配置 OpenClaw (setup + doctor + onboard)"
   echo
   read -rp "确认执行一键初始化？[y/N]: " cfm
   if [[ ! "$cfm" =~ ^[Yy]$ ]]; then
