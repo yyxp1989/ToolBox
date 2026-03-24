@@ -10,7 +10,7 @@ set -o pipefail
 # 4) 安装 OpenClaw CLI
 # 5) OpenClaw 菜单化运维（网关/doctor/配对等）
 
-VERSION="2.7.0"
+VERSION="2.7.1"
 
 RED='\033[31m'
 GREEN='\033[32m'
@@ -542,6 +542,38 @@ uninstall_pnpm() {
   ok "pnpm 卸载完成"
 }
 
+uninstall_nodejs() {
+  if ! need_cmd node; then
+    warn "系统中未检测到 Node.js，无需卸载。"
+    return 0
+  fi
+
+  warn "此操作将从系统中移除 Node.js 和 npm。"
+  read -rp "确认卸载 Node.js？[y/N]: " cfm
+  if [[ ! "$cfm" =~ ^[Yy]$ ]]; then
+    return 0
+  fi
+
+  ensure_root || return 1
+
+  step "1. 卸载 Node.js 软件包..."
+  run_cmd "移除 nodejs" as_root apt-get remove -y nodejs || true
+  run_cmd "清理依赖" as_root apt-get autoremove -y || true
+
+  step "2. 移除 NodeSource 仓库..."
+  as_root rm -f /etc/apt/sources.list.d/nodesource.list 2>/dev/null || true
+  as_root rm -f /etc/apt/keyrings/nodesource.gpg 2>/dev/null || true
+
+  step "3. 清理缓存..."
+  as_root apt-get update 2>/dev/null || true
+
+  if ! need_cmd node; then
+    ok "Node.js 卸载完成"
+  else
+    warn "Node.js 可能未完全卸载，请手动检查"
+  fi
+}
+
 # 配置 pnpm 全局 bin 目录（解决 ERR_PNPM_NO_GLOBAL_BIN_DIR）
 _setup_pnpm_global() {
   need_cmd pnpm || return 1
@@ -756,6 +788,7 @@ openclaw_install_menu() {
     echo "5) 检查 OpenClaw 版本"
     echo "6) ❌ 卸载 OpenClaw"
     echo "7) 🗑️  卸载 pnpm"
+    echo "8) 🗑️  卸载 Node.js"
     echo "0) 返回主菜单"
     read -rp "请选择: " n
 
@@ -772,6 +805,7 @@ openclaw_install_menu() {
         ;;
       6) uninstall_openclaw; pause ;;
       7) uninstall_pnpm; pause ;;
+      8) uninstall_nodejs; pause ;;
       0) return ;;
       *) warn "无效输入"; pause ;;
     esac
