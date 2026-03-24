@@ -10,8 +10,7 @@ set -o pipefail
 # 4) 安装 OpenClaw CLI
 # 5) OpenClaw 菜单化运维（网关/doctor/配对等）
 
-VERSION="2.6.1"
-LOG_FILE="/tmp/openclaw-menu.log"
+VERSION="2.7.0"
 
 RED='\033[31m'
 GREEN='\033[32m'
@@ -21,8 +20,37 @@ CYAN='\033[36m'
 MAGENTA='\033[35m'
 NC='\033[0m'
 
-# 必须先定义 TARGET_USER
-TARGET_USER="${SUDO_USER:-$USER}"
+# 安全检测目标用户
+_detect_target_user() {
+  local user=""
+  # 优先使用 logname（基于 utmp，不受环境变量影响）
+  user="$(logname 2>/dev/null)" || true
+  if [ -z "$user" ]; then
+    user="${SUDO_USER:-}"
+  fi
+  if [ -z "$user" ]; then
+    user="${USER:-$(whoami)}"
+  fi
+  echo "$user"
+}
+
+TARGET_USER="$(_detect_target_user)"
+
+# 验证用户名合法性
+if [[ ! "$TARGET_USER" =~ ^[a-z_][a-z0-9_-]{0,31}$ ]]; then
+  echo "FATAL: 非法用户名 '${TARGET_USER}'，中止执行。" >&2
+  exit 1
+fi
+
+# 安全日志文件位置
+LOG_DIR="/home/${TARGET_USER}/.local/log"
+mkdir -p "$LOG_DIR" 2>/dev/null || true
+LOG_FILE="${LOG_DIR}/openclaw-menu.log"
+touch "$LOG_FILE" 2>/dev/null && chmod 600 "$LOG_FILE" 2>/dev/null || {
+  # 回退到 /tmp（但使用 mktemp 防止符号链接攻击）
+  LOG_FILE="$(mktemp /tmp/openclaw-menu-XXXXXX.log)"
+  chmod 600 "$LOG_FILE"
+}
 
 # 扩展 PATH 确保能找到 sbin 下的系统命令（如 smbd, sshd）
 export PATH="$PATH:/usr/sbin:/sbin:/usr/local/sbin"
@@ -76,8 +104,9 @@ run_cmd() {
     ok "$desc 成功"
     return 0
   else
-    err "$desc 失败"
-    return 1
+    local rc=$?
+    err "$desc 失败 (exit code: $rc)"
+    return $rc
   fi
 }
 
@@ -134,6 +163,41 @@ ensure_root() {
 
 # ==================== 快捷启动配置 ====================
 
+# 安全写入文件（原子操作）
+safe_write() {
+  local target="$1"
+  local content="$2"
+  local tmpf
+  tmpf="$(mktemp "${target}.tmp.XXXXXX")"
+  if ! echo "$content" > "$tmpf"; then
+    rm -f "$tmpf"
+    return 1
+  fi
+  if ! mv "$tmpf" "$target"; then
+    rm -f "$tmpf"
+    return 1
+  fi
+  return 0
+}
+
+# 路径验证（防注入）
+_validate_path() {
+  local path="$1"
+  if [[ "$path" == *".."* ]]; then
+    err "路径不允许包含 '..' (禁止路径穿越)"
+    return 1
+  fi
+  if [[ "$path" == *'$('* ]] || [[ "$path" == *'`'* ]] || [[ "$path" == *$'\n'* ]] || [[ "$path" == *$'\r'* ]]; then
+    err "路径包含不允许的字符（禁止命令注入）"
+    return 1
+  fi
+  if [[ "$path" != /* ]]; then
+    err "路径必须为绝对路径"
+    return 1
+  fi
+  return 0
+}
+
 setup_shortcut() {
   local script_dest="/home/${TARGET_USER}/openclaw-menu.sh"
   local bashrc="/home/${TARGET_USER}/.bashrc"
@@ -147,10 +211,12 @@ setup_shortcut() {
     ok "脚本已保存至: $script_dest"
   fi
 
-  # 2. 注入别名到 .bashrc
+  # 2. 注入别名到 .bashrc（原子操作）
   if grep -q "alias y=" "$bashrc"; then
     # 如果已存在，则更新
-    sed -i "s|alias y=.*|alias y='$script_dest'|" "$bashrc"
+    local tmpf
+    tmpf="$(mktemp)"
+    sed "s|alias y=.*|alias y='$script_dest'|" "$bashrc" > "$tmpf" && mv "$tmpf" "$bashrc"
     ok "快捷别名 'y' 已更新"
   else
     echo "alias y='$script_dest'" >> "$bashrc"
@@ -190,7 +256,7 @@ show_status_summary() {
   echo "  用户: ${TARGET_USER}"
   echo "  系统: $(. /etc/os-release && echo "${PRETTY_NAME:-$ID}")"
   echo "  内核: $(uname -r)"
-  echo "  IP: $(hostname -I | awk '{print $1}')"
+  echo "  IP: $(hostname -I 2>/dev/null | awk '{print $1}' || echo "未知")"
   echo
   
   # Docker 状态
@@ -462,10 +528,14 @@ uninstall_pnpm() {
   if [[ "$cfm_clean" =~ ^[Yy]$ ]]; then
     rm -rf "$pnpm_home"
     rm -f "/home/${TARGET_USER}/.pnpmrc"
-    # 尝试清理 .bashrc 中的 pnpm setup 注入
-    sed -i '/# pnpm/d' "/home/${TARGET_USER}/.bashrc" 2>/dev/null || true
-    sed -i '/export PNPM_HOME/d' "/home/${TARGET_USER}/.bashrc" 2>/dev/null || true
-    sed -i '/\$PNPM_HOME/d' "/home/${TARGET_USER}/.bashrc" 2>/dev/null || true
+    # 清理 .bashrc 中的 pnpm setup 注入（原子操作）
+    local tmp_bashrc
+    tmp_bashrc="$(mktemp)"
+    local bashrc_file="/home/${TARGET_USER}/.bashrc"
+    if [ -f "$bashrc_file" ]; then
+      grep -v -E '# pnpm|export PNPM_HOME|\$PNPM_HOME' "$bashrc_file" > "$tmp_bashrc" && mv "$tmp_bashrc" "$bashrc_file"
+    fi
+    rm -f "$tmp_bashrc" 2>/dev/null
     ok "pnpm 相关数据已清理"
   fi
 
@@ -511,7 +581,7 @@ install_docker() {
   run_cmd "创建 keyrings 目录" as_root install -m 0755 -d /etc/apt/keyrings || return 1
 
   step "下载 Docker GPG key..."
-  if curl -fsSL https://download.docker.com/linux/debian/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg; then
+  if curl -fsSL https://download.docker.com/linux/debian/gpg | as_root gpg --dearmor -o /etc/apt/keyrings/docker.gpg; then
     ok "Docker GPG key 下载成功"
   else
     err "Docker GPG key 下载失败"
@@ -558,7 +628,8 @@ add_user_to_docker_group() {
   fi
 
   run_cmd "将用户 ${TARGET_USER} 添加到 docker 组" as_root usermod -aG docker "$TARGET_USER" || return 1
-  warn "组变更通常需要重新登录后生效。你也可以尝试执行：newgrp docker"
+  warn "组变更需要重新登录后生效。你也可以尝试执行：newgrp docker"
+  info "提示：如果不重新登录，当前 shell 中 docker 命令仍需 sudo。"
 }
 
 check_docker_status() {
@@ -898,7 +969,7 @@ check_ssh_status() {
   echo
   echo "--- 连接信息 ---"
   local ip
-  ip=$(hostname -I | awk '{print $1}')
+  ip=$(hostname -I 2>/dev/null | awk '{print $1}' || echo "未知")
   echo "  连接命令: ssh ${TARGET_USER}@${ip}"
   
   echo
@@ -1026,7 +1097,7 @@ EOF
   ok "VNC 服务器已启动"
   
   local ip
-  ip=$(hostname -I | awk '{print $1}')
+  ip=$(hostname -I 2>/dev/null | awk '{print $1}' || echo "未知")
   echo
   info "连接信息:"
   echo "  地址: ${ip}:5901"
@@ -1079,7 +1150,7 @@ check_vnc_status() {
 
   echo
   local ip
-  ip=$(hostname -I | awk '{print $1}')
+  ip=$(hostname -I 2>/dev/null | awk '{print $1}' || echo "未知")
   echo "--- 连接信息 ---"
   echo "  默认地址: ${ip}:5901 (显示号 :1)"
   echo "  配置文件: /home/${TARGET_USER}/.vnc/"
@@ -1149,21 +1220,17 @@ set_smb_share_path() {
   # 安全展开 ~ 为用户 home 目录（避免 eval 命令注入）
   new_path="${new_path/#\~//home/${TARGET_USER}}"
   
-  # 验证路径安全性
-  if [[ "$new_path" == *".."* ]]; then
-    err "路径不允许包含 '..' (禁止路径穿越)"
-    return 1
-  fi
-  if [[ "$new_path" == *'$('* ]] || [[ "$new_path" == *'`'* ]]; then
-    err "路径包含不允许的字符"
-    return 1
-  fi
+  # 使用统一的路径验证函数
+  _validate_path "$new_path" || return 1
   
   # 创建配置目录
   mkdir -p "$(dirname "$SMB_SHARE_PATH_FILE")"
   
-  # 保存路径
-  echo "$new_path" > "$SMB_SHARE_PATH_FILE"
+  # 原子写入路径配置
+  safe_write "$SMB_SHARE_PATH_FILE" "$new_path" || {
+    err "保存共享路径失败"
+    return 1
+  }
   ok "已保存共享路径: ${new_path}"
   
   # 询问是否创建目录
@@ -1239,6 +1306,12 @@ configure_smb_share() {
   local share_path
   share_path=$(get_smb_share_path)
   
+  # 验证共享路径安全性
+  _validate_path "$share_path" || {
+    err "共享路径验证失败"
+    return 1
+  }
+  
   step "配置 Samba 共享..."
   echo "共享名称: ${SMB_SHARE_NAME}"
   echo "共享路径: ${share_path}"
@@ -1275,11 +1348,12 @@ configure_smb_share() {
     # 安全删除旧的共享配置块（使用 awk 更可靠）
     local tmp_conf
     tmp_conf=$(mktemp)
-    awk -v share="${SMB_SHARE_NAME}" '
+    as_root awk -v share="${SMB_SHARE_NAME}" '
       $0 == "["share"]" { in_share=1; next }
       /^\[/ { in_share=0 }
       !in_share { print }
     ' "$SMB_CONF" > "$tmp_conf" && as_root mv "$tmp_conf" "$SMB_CONF"
+    rm -f "$tmp_conf" 2>/dev/null  # 清理残留
   fi
 
   # 添加共享配置（需要 root 权限写入 /etc/samba/smb.conf）
@@ -1372,7 +1446,7 @@ check_smb_status() {
   
   echo
   local ip
-  ip=$(hostname -I | awk '{print $1}')
+  ip=$(hostname -I 2>/dev/null | awk '{print $1}' || echo "未知")
   echo "--- 连接信息 ---"
   echo "  Windows: \\\\${ip}\\${SMB_SHARE_NAME}"
   echo "  macOS: smb://${ip}/${SMB_SHARE_NAME}"
@@ -1448,7 +1522,7 @@ show_fileshare_status() {
   echo
 
   local ip
-  ip=$(hostname -I | awk '{print $1}')
+  ip=$(hostname -I 2>/dev/null | awk '{print $1}' || echo "未知")
 
   # SMB 状态
   echo -e "${CYAN}【SMB/Samba】${NC}"
