@@ -78,10 +78,10 @@ run_cmd() {
 
 run_cmd_retry() {
   local desc="$1"
-  shift
-  local max_retries="${1:-3}"
+  local max_retries="$2"
+  shift 2
   local retry=0
-  
+
   while [ $retry -lt $max_retries ]; do
     info "$desc (尝试 $((retry+1))/$max_retries)"
     if "$@"; then
