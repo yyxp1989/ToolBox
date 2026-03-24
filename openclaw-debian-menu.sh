@@ -363,9 +363,10 @@ install_pnpm() {
   if need_cmd corepack; then
     info "通过 corepack 启用 pnpm..."
     if as_root corepack enable pnpm 2>/dev/null; then
-      # corepack enable 只是注册，需要 prepare 真正安装
       corepack prepare pnpm@latest --activate 2>/dev/null || true
       if need_cmd pnpm; then
+        # 配置 pnpm 全局目录
+        _setup_pnpm_global
         ok "已通过 corepack 安装 pnpm: $(pnpm --version)"
         return 0
       fi
@@ -377,11 +378,30 @@ install_pnpm() {
   run_cmd_retry "npm 安装 pnpm" 3 npm install -g pnpm || return 1
 
   if need_cmd pnpm; then
+    _setup_pnpm_global
     ok "pnpm 安装完成: $(pnpm --version)"
   else
     err "pnpm 安装失败"
     return 1
   fi
+}
+
+# 配置 pnpm 全局 bin 目录（解决 ERR_PNPM_NO_GLOBAL_BIN_DIR）
+_setup_pnpm_global() {
+  need_cmd pnpm || return 1
+
+  # 设置 PNPM_HOME 并运行 pnpm setup
+  local pnpm_home="/home/${TARGET_USER}/.local/share/pnpm"
+  export PNPM_HOME="$pnpm_home"
+
+  pnpm setup --force 2>/dev/null || true
+
+  # 确保 PNPM_HOME 在当前 session 的 PATH 中
+  if [[ ":$PATH:" != *":${pnpm_home}:"* ]]; then
+    export PATH="${pnpm_home}:${PATH}"
+  fi
+
+  info "pnpm 全局目录: ${pnpm_home}"
 }
 
 # ==================== Docker 安装 ====================
@@ -491,6 +511,8 @@ install_openclaw() {
 
   # 优先使用 pnpm
   if need_cmd pnpm; then
+    # 确保 pnpm 全局目录已配置
+    _setup_pnpm_global 2>/dev/null
     run_cmd_retry "pnpm 安装 openclaw" 3 pnpm add -g openclaw || return 1
   elif need_cmd npm; then
     warn "未检测到 pnpm，使用 npm 安装"
