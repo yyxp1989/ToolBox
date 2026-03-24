@@ -3,6 +3,9 @@ set -u
 set -o pipefail
 
 # OpenClaw Debian Menu Installer / Operator v2
+# 作者: YY
+# 仓库: https://github.com/yyxp1989/ToolBox
+# 
 # 功能：
 # 1) 为当前登录用户配置 sudo 免密（方案A，NOPASSWD）
 # 2) 安装 Docker
