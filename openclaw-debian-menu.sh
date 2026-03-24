@@ -9,7 +9,7 @@ set -u
 # 4) 安装 OpenClaw CLI
 # 5) OpenClaw 菜单化运维（网关/doctor/配对等）
 
-VERSION="2.5.4"
+VERSION="2.5.5"
 LOG_FILE="/tmp/openclaw-menu.log"
 
 RED='\033[31m'
@@ -706,7 +706,7 @@ openclaw_advanced_menu() {
       3) ensure_openclaw_installed && openclaw security audit; pause ;;
       4) ensure_openclaw_installed && openclaw models status; pause ;;
       5) ensure_openclaw_installed && openclaw models aliases; pause ;;
-      6) ensure_openclaw_installed && openclaw config; pause ;;
+      6) ensure_openclaw_installed && openclaw config get; pause ;;
       7) ensure_openclaw_installed && openclaw sessions; pause ;;
       8) ensure_openclaw_installed && openclaw channels logs; pause ;;
       9) install_openclaw; pause ;;
@@ -1058,86 +1058,6 @@ vnc_menu() {
       *) warn "无效输入"; pause ;;
     esac
   done
-}
-
-# ==================== 远程访问菜单 ====================
-
-remote_access_menu() {
-  while true; do
-    clear
-    echo -e "${BLUE}===== 远程访问菜单 =====${NC}"
-    echo "1) SSH 管理"
-    echo "2) VNC 管理"
-    echo "3) 远程访问状态总览"
-    echo "0) 返回上一级"
-    read -rp "请选择: " n
-
-    case "$n" in
-      1) ssh_menu ;;
-      2) vnc_menu ;;
-      3) 
-        show_remote_status
-        pause
-        ;;
-      0) return ;;
-      *) warn "无效输入"; pause ;;
-    esac
-  done
-}
-
-show_remote_status() {
-  clear
-  echo -e "${BLUE}╔════════════════════════════════════════╗${NC}"
-  echo -e "${BLUE}║        远程访问状态总览                ║${NC}"
-  echo -e "${BLUE}╚════════════════════════════════════════╝${NC}"
-  echo
-
-  local ip
-  ip=$(hostname -I | awk '{print $1}')
-  
-  # SSH 状态
-  echo -e "${CYAN}【SSH】${NC}"
-  if need_cmd sshd; then
-    echo -e "  ${GREEN}✓${NC} OpenSSH Server 已安装"
-    if systemctl is-active ssh >/dev/null 2>&1; then
-      echo -e "  ${GREEN}✓${NC} 服务运行中"
-      echo "  连接命令: ssh ${TARGET_USER}@${ip}"
-    else
-      echo -e "  ${YELLOW}!${NC} 服务未运行"
-    fi
-  else
-    echo -e "  ${RED}✗${NC} 未安装"
-  fi
-  echo
-
-  # VNC 状态
-  echo -e "${CYAN}【VNC】${NC}"
-  if need_cmd vncserver || need_cmd Xvnc; then
-    echo -e "  ${GREEN}✓${NC} TigerVNC 已安装"
-    if [ -f "$VNC_PASS_FILE" ]; then
-      echo -e "  ${GREEN}✓${NC} 密码已配置"
-    else
-      echo -e "  ${YELLOW}!${NC} 密码未配置"
-    fi
-    if ss -tlnp 2>/dev/null | grep -q ':5901'; then
-      echo -e "  ${GREEN}✓${NC} 服务运行中 (:1)"
-      echo "  连接地址: ${ip}:5901"
-    else
-      echo -e "  ${YELLOW}!${NC} 服务未运行"
-    fi
-  else
-    echo -e "  ${RED}✗${NC} 未安装"
-  fi
-  echo
-
-  # 网络信息
-  echo -e "${CYAN}【网络信息】${NC}"
-  echo "  主机名: $(hostname)"
-  echo "  IP 地址: ${ip}"
-  echo "  所有 IP: $(hostname -I)"
-  echo
-  
-  echo -e "${BLUE}════════════════════════════════════════${NC}"
 }
 
 # ==================== SMB 管理 ====================
@@ -1504,6 +1424,9 @@ uninstall_openclaw() {
     return 0
   fi
 
+  # 确保环境变量就绪（特别是 pnpm）
+  _setup_pnpm_global 2>/dev/null || true
+
   step "1. 正在停止并卸载系统服务..."
   as_root systemctl stop openclaw 2>/dev/null || true
   as_root systemctl disable openclaw 2>/dev/null || true
@@ -1655,7 +1578,7 @@ main_menu() {
       5) openclaw_chat_nodes_menu ;;
       6) openclaw_advanced_menu ;;
       7) ensure_openclaw_installed && openclaw gateway restart; pause ;;
-      8) ensure_openclaw_installed && openclaw tui ;;
+      8) ensure_openclaw_installed && openclaw tui; pause ;;
       9) show_status_summary ;;
       0)
         info "已退出。"
