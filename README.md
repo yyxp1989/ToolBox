@@ -15,9 +15,10 @@ GitHub：[@yyxp1989/ToolBox](https://github.com/yyxp1989/ToolBox)
 
 ## 界面预览
 
-建议在 GitHub 发布前补充 1 到 3 张截图，放在仓库中例如：
+![主菜单总览](docs/images/main-menu.jpg)
 
-- `docs/images/main-menu.png`
+当前已补充主菜单截图。后续如果继续完善，建议再增加：
+
 - `docs/images/model-management.png`
 - `docs/images/gateway-ops.png`
 
