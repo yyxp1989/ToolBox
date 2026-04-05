@@ -11,6 +11,24 @@ OpenClaw ToolBox 是一个面向 Debian / WSL Debian 的 `OpenClaw` 一体化部
 当前工具箱版本：`v3.0.0`
 
 
+## 快捷使用
+
+在 Debian / WSL Debian 终端执行下面这一行，即可完成：
+- 下载脚本
+- 赋予执行权限
+- 自动配置快捷别名 `y`
+- 立即启动菜单
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/yyxp1989/ToolBox/main/openclaw-menu.sh -o ~/openclaw-menu.sh && chmod +x ~/openclaw-menu.sh && grep -qxF "alias y='~/openclaw-menu.sh'" ~/.bashrc || echo "alias y='~/openclaw-menu.sh'" >> ~/.bashrc && source ~/.bashrc && ~/openclaw-menu.sh
+```
+
+配置完成后，后续只需执行：
+
+```bash
+y
+```
+
 ## 界面预览
 
 ### 主菜单总览
