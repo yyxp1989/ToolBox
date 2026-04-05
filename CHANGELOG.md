@@ -1,26 +1,36 @@
-# openclaw-debian-menu.sh 修复完成报告
+# Changelog
 
-> 修复时间：2026-03-24
-> 版本升级：v2.6.1 → v2.7.0
+All notable changes to `OpenClaw ToolBox` will be documented in this file.
 
-## ✅ 全部 11 项修复已完成
+## v3.0.0
 
-### P0 (3项)
-1. TARGET_USER 检测改用 logname（防环境变量伪造）
-2. TARGET_USER 正则格式验证（防路径注入）
-3. 日志文件移出 /tmp（防符号链接攻击 + 权限 600）
+### Added
 
-### P1 (5项)
-4. run_cmd 保留实际 exit code
-5. Docker GPG sudo → as_root
-6. sed -i 改为 tmpfile + mv 原子写入（setup_shortcut / uninstall_pnpm）
-7. SMB 路径验证增强（新增 _validate_path 函数）
-8. 配置文件原子写入（新增 safe_write 函数）
+- 新增面向 `Debian / WSL Debian` 的 `OpenClaw ToolBox` 发布版 README
+- 新增 `CLI Proxy API` 的 `Linux/systemd` 与 `Docker` 双模式识别和管理
+- 新增 `CLI Proxy API` 配置路径自动识别
+- 新增 `CLI Proxy API` 模型一键接入 `OpenClaw`
+- 新增 `Agent Tool` 一键权限设置
+- 新增 `TigerVNC + XFCE` 的 Debian 系统服务管理
+- 新增 `Samba` 共享 `~/.openclaw` 的菜单化管理
+- 新增 `whiptail` 单选 / 多选交互，并支持缺失时自动安装
 
-### P2 (3项)
-9. hostname -I 全部 6 处加错误处理
-10. docker 组提示增强
-11. SMB awk 临时文件清理
+### Changed
 
-## 验证
-- `bash -n` 语法检查通过
+- 工具箱版本统一为 `v3.0.0`
+- 主菜单改为运维面板风格，顶部直接显示关键状态
+- 菜单结构重组为：
+  - 一键部署 OpenClaw
+  - OpenClaw 部署管理
+  - 系统环境与依赖
+  - 网关与服务运维
+- `OpenClaw 业务配置` 重新聚合模型、频道、节点、权限配置
+- `Agent 模型管理` 拆分为主模型单选与 Fallback 多选
+- `供应商模型管理` 统一为更清晰的同步 / 删除逻辑
+- `环境配套` 更名为 `系统环境与依赖`
+- `Agent Tool 权限 / Approvals` 更名为 `Agent Tool 工具权限审批策略`
+- 主菜单和环境页状态检测做了轻量化，减少卡顿
+
+### Notes
+
+- 当前版本主要面向 `Debian / WSL Debian`
