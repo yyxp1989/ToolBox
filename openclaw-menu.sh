@@ -2589,7 +2589,6 @@ show_status_summary() {
   echo -e "${BLUE}║               OpenClaw Operations Dashboard             ║${NC}"
   echo -e "${BLUE}╚══════════════════════════════════════════════════════════╝${NC}"
   echo
-  echo -e "总体健康度: $(render_status_chip "SYSTEM" "$overall_state")"
   echo -e "关键服务:   $(render_status_chip "Docker" "$docker_state")  $(render_status_chip "CLIProxy" "$cliproxy_state")  $(render_status_chip "OpenClaw" "$openclaw_state")"
   echo
 
