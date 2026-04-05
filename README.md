@@ -10,23 +10,17 @@ OpenClaw ToolBox 是一个面向 Debian / WSL Debian 的 `OpenClaw` 一体化部
 
 当前工具箱版本：`v3.0.0`
 
-作者：`YY`  
-GitHub：[@yyxp1989/ToolBox](https://github.com/yyxp1989/ToolBox)
 
 ## 界面预览
 
+### 主菜单总览
 ![主菜单总览](docs/images/main-menu.jpg)
 
-当前已补充主菜单截图。后续如果继续完善，建议再增加：
+### 模型与供应商配置
+![模型与供应商配置](docs/images/model-management.jpg)
 
-- `docs/images/model-management.png`
-- `docs/images/gateway-ops.png`
-
-推荐展示页面：
-
-- 主菜单总览
-- 模型与供应商配置
-- 网关与服务运维
+### 网关与服务运维
+![网关与服务运维](docs/images/gateway-ops.jpg)
 
 ## 适用场景
 
